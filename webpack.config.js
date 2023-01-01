@@ -15,5 +15,21 @@ module.exports = {
         new HtmlWebpackPlugin({
             template: './src/index.html'
         })
-    ]
+    ],
+    resolve: {
+        extensions: ['.ts', '.js'],
+    },
+    module: {
+        rules: [
+            {
+                test: /\.(png|jpg|svg|gif)$/,
+                use: ['file-loader']
+            },
+            {
+                test: /\.ts$/,
+                use: 'ts-loader',
+                exclude: '/node_modules/'
+            }
+        ]
+    }
 }
