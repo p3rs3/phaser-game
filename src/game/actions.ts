@@ -1,16 +1,51 @@
 import { PhaserGame } from "../global/phaser-game";
 import { AssetName } from "../types/asset-name";
+import { SoundName } from "../types/sound-name";
 import Phaser from "phaser";
 import bomb from '../assets/bomb.png';
 import sky from '../assets/sky.png';
 import ground from '../assets/platform.png';
 import dude from '../assets/dude.png';
 import star from '../assets/star.png';
+import mute from '../assets/mute.png';
+import volume from '../assets/volume.png';
 import reload from '../assets/reload.png';
+import jump from '../assets/sounds/jump.mp3';
+import background from '../assets/sounds/background.mp3';
+import run from '../assets/sounds/run.mp3';
+import collect from '../assets/sounds/collect.wav';
+import gameOver from '../assets/sounds/game-over.mp3';
 
 export function create(this: Phaser.Scene) {
     this.add.image(400, 300, AssetName.SKY);
 
+    PhaserGame.jumpSound = this.sound.add(SoundName.JUMP);
+    PhaserGame.runSound = this.sound.add(SoundName.RUN);
+    PhaserGame.collectSound = this.sound.add(SoundName.COLLECT);
+    PhaserGame.gameOverSound = this.sound.add(SoundName.GAME_OVER);
+    PhaserGame.backgroundSound = this.sound.add(SoundName.BACKGROUND);
+
+    playSound(() => {
+        PhaserGame.backgroundSound.play({
+            loop: true,
+            volume: 0.2
+        });
+    })
+
+    if (PhaserGame.isSoundMute) {
+        PhaserGame.sound = this.physics.add.staticImage(750, 80, AssetName.MUTE);
+    } else {
+        PhaserGame.sound = this.physics.add.staticImage(750, 80, AssetName.VOLUME);
+    }
+
+    this.input.on('gameobjectup', (pointer: any, gameObject: any) => {
+        gameObject.emit('clicked', gameObject);
+    }, this);
+
+    PhaserGame.sound.setInteractive();
+    PhaserGame.sound.on('clicked', toggleIsMute, this);
+
+    
     const platforms = this.physics.add.staticGroup();
     platforms.create(400, 568, AssetName.GROUND).setScale(2).refreshBody();
     platforms.create(600, 400, AssetName.GROUND);
@@ -61,6 +96,8 @@ export function create(this: Phaser.Scene) {
 
     this.input.keyboard.on('keydown-R', () => {
         this.scene.restart();
+        PhaserGame.backgroundSound.destroy();
+        PhaserGame.runSound.destroy();
         PhaserGame.isGameOver = false;
         PhaserGame.score = 0;
     })
@@ -72,6 +109,9 @@ export function create(this: Phaser.Scene) {
 
 export function update(this: Phaser.Scene) {
     if (PhaserGame.isGameOver) {
+        if (!PhaserGame.gameOverSound.isPlaying) {
+            this.sound.stopAll();
+        }
         if (PhaserGame.score > PhaserGame.bestScore) {
             localStorage.setItem('best_score', String(PhaserGame.score));
         }
@@ -82,26 +122,47 @@ export function update(this: Phaser.Scene) {
     const cursors = this.input.keyboard.createCursorKeys();
 
     if (cursors.up.isDown && PhaserGame.player.body.touching.down) {
+        playSound(() => {
+            PhaserGame.jumpSound.play();
+        })
         PhaserGame.player.setVelocityY(-330);
     }
 
     if (cursors.left.isDown) {
         PhaserGame.player.setVelocityX(-160);
-        PhaserGame.player.anims.play('left', true);
+        if (!PhaserGame.runSound.isPlaying) {
+            playSound(() => {
+                PhaserGame.runSound.play({loop: true});            
+            })
+        }
         return;
     }
     if (cursors.right.isDown) {
         PhaserGame.player.setVelocityX(160);
         PhaserGame.player.anims.play('right', true);
+        if (!PhaserGame.runSound.isPlaying) {
+            playSound(() => {
+                PhaserGame.runSound.play({loop: true});
+            })
+        }
         return;
     }
+
+    PhaserGame.runSound.stop();
 
     PhaserGame.player.setVelocityX(0);
     PhaserGame.player.anims.play('turn');
 }
 
 
-export function preload() {
+export function preload(this: Phaser.Scene) {
+    this.load.image(AssetName.VOLUME, volume);
+    this.load.image(AssetName.MUTE, mute);
+    this.load.audio(SoundName.JUMP, jump);
+    this.load.audio(SoundName.BACKGROUND, background);
+    this.load.audio(SoundName.COLLECT, collect);
+    this.load.audio(SoundName.RUN, run);
+    this.load.audio(SoundName.GAME_OVER, gameOver);
     this.load.image(AssetName.SKY, sky);
     this.load.image(AssetName.GROUND, ground);
     this.load.image(AssetName.STAR, star);
@@ -112,6 +173,9 @@ export function preload() {
 
 function collectStar(player: any, star: any) {
     star.disableBody(true, true);
+    playSound(() => {
+        PhaserGame.collectSound.play();
+    })
     PhaserGame.score += 10;
     PhaserGame.scoreText.setText('Score: ' + PhaserGame.score);
 
@@ -130,8 +194,37 @@ function collectStar(player: any, star: any) {
 }
 
 function hitBomb(player: any, bomb: any) {
+    playSound(() => {
+        PhaserGame.gameOverSound.play();
+    })
     this.physics.pause();
     player.setTint(0xff0000);
     player.anims.play('turn');
     PhaserGame.isGameOver = true;
+}
+
+function toggleIsMute(this: Phaser.Scene) {
+    if (PhaserGame.isSoundMute) {
+        PhaserGame.isSoundMute = false;
+        PhaserGame.sound.setTexture(AssetName.VOLUME);
+        this.sound.mute = false;
+        this.game.sound.resumeAll();
+        
+        PhaserGame.backgroundSound.play({
+            loop: true,
+            volume: 0.2
+        });
+
+        return;
+    }
+
+    PhaserGame.isSoundMute = true;
+    PhaserGame.sound.setTexture(AssetName.MUTE);
+    this.game.sound.stopAll();
+}
+
+function playSound(callback: () => void) {
+    if (!PhaserGame.isSoundMute) {
+        callback();
+    }
 }

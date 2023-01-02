@@ -4,5 +4,7 @@ export enum AssetName {
     DUDE = 'dude',
     GROUND = 'ground',
     SKY = 'sky',
-    RELOAD = 'reload'
+    RELOAD = 'reload',
+    MUTE = 'mute',
+    VOLUME = 'volume'
 }
